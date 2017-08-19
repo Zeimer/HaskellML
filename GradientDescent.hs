@@ -49,39 +49,67 @@ descentGrad alpha numOfIter start f f'
 	| numOfIter <= 0 = start
 	| otherwise = descentGrad alpha (numOfIter - 1) (start - alpha * f' start) f f'
 
-{-descent :: R -> Int -> R -> (R -> R) -> R
-descent alpha numOfIter start f
-	| numOfIter <= 0 = start
-	| otherwise = descent alpha (numOfIter - 1) (start - alpha * diff f start) f-}
-
 descent a n x f = descentGrad a n x f (diff f) 
 
-autodescent :: R -> (R -> R) -> R
-autodescent p = aux 1e-100 0 where
+autodescentGrad :: R -> (R -> R) -> (R -> R) -> R
+autodescentGrad p f f' = aux 1e-100 0 f f' where
 
-	aux alpha start f
-		| f (start - alpha * diff f start) > f start = aux (alpha / 2) start f
-		| abs (diff f start) < p = start
-		| otherwise = aux (2 * alpha) (start - alpha * diff f start) f
+	aux alpha start f f'
+		| f (start - alpha * f' start) > f start = aux (alpha / 2) start f f'
+		| abs (f' start) < p = start
+		| otherwise = aux (2 * alpha) (start - alpha * f' start) f f'
 
+autodescent p f = autodescentGrad p f (diff f)
 
-descentv :: R -> Int -> Vector R -> (Vector R -> R) -> Vector R
-descentv alpha numOfIter start f
+descentvGrad :: R -> Int -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> Vector R
+descentvGrad alpha numOfIter start f f'
 	| numOfIter <= 0 = start
-	| otherwise = descentv alpha (numOfIter - 1) (start - scale alpha (diffv f start)) f
+	| otherwise = descentvGrad alpha (numOfIter - 1) (start - scale alpha (f' start)) f f'
 
-autodescentv :: R -> Vector R -> (Vector R -> R) -> Vector R
-autodescentv p start = aux 1e-3 start where
+descentv a n x f = descentvGrad a n x f (diffv f)
 
-	aux alpha start f
-		| f (start - scale alpha (diffv f start)) > f start = aux (alpha / 2) start f
-		| norm (diffv f start) < p = start
-		| otherwise = aux (2 * alpha) (start - scale alpha (diffv f start)) f
+autodescentvGrad :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> Vector R
+autodescentvGrad p start f f' = aux 1e-100 start f f' where
+
+	aux alpha start f f'
+		| f (start - scale alpha (f' start)) > f start = aux (alpha / 2) start f f'
+		| norm (f' start) < p = start
+		| otherwise = aux (2 * alpha) (start - scale alpha (f' start)) f f'
+
+autodescentv p x f = autodescentvGrad p x f (diffv f)
+
+agh :: Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
+agh start f f' = aux [start] 1 f f' where
+
+	aux hist@(h1:h2:_) alpha f f'
+		| h1 == h2 = hist
+	aux hist@(h:_) alpha f f'
+		| f (h - scale alpha (f' h)) > f h = aux hist (alpha / 2) f f'
+	--	| f (h - scale alpha (f' h)) == f h = hist
+		| otherwise = aux (h - scale alpha (f' h) : hist) (2 * alpha) f f'
+	{-aux hist@(h:_) alpha f f' =
+		let
+			h' = h - scale alpha (f' h)
+		in
+			case compare (f h') (f h) of
+				GT -> aux (h': hist) (alpha / 2) f f'
+				EQ -> h' : hist
+				LT -> aux (h' : hist) (2 * alpha) f f'-}
 
 descentHist :: R -> Int -> R -> (R -> R) -> [R]
 descentHist alpha numOfIter start f
 	| numOfIter <= 0 = [start]
 	| otherwise = start : descentHist alpha (numOfIter - 1) (start - alpha * diff f start) f
+
+
+autodescentvGradHist :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
+autodescentvGradHist p start f f' = aux 1e-100 start f f' where
+
+	aux alpha start f f'
+		| f (start - scale alpha (f' start)) > f start = aux (alpha / 2) start f f'
+		| norm (f' start) < p = [start]
+		| otherwise = start : aux (2 * alpha) (start - scale alpha (f' start)) f f'
+
 
 autodescentHist :: R -> (R -> R) -> [R]
 autodescentHist p = aux 1 0 where
@@ -103,6 +131,16 @@ autodescentvHist p start = aux 1e-3 start where
 		| f (start - scale alpha (diffv f start)) > f start = aux (alpha / 2) start f
 		| norm (diffv f start) < p = [start]
 		| otherwise = start : aux (2 * alpha) (start - scale alpha (diffv f start)) f
+
+plotHist :: String -> [R] -> IO ()
+plotHist name points = do
+	let g = zip ([0..] :: [Int]) points
+
+	toFile def (name ++ ".png") $ do
+		layout_title .= name
+		setColors [opaque blue]
+		plot (line "Gradient descent's error" [g])
+
 
 plotDescentHist :: String -> R -> Int -> R -> (R -> R) -> IO ()
 plotDescentHist name α numOfIter start f = do
