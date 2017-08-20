@@ -12,13 +12,14 @@ import Graphics.Rendering.Chart.Backend.Cairo
 
 import GradientDescent
 import Util
+import LinearRegression
 
 -- Cost function for linear regression.
-cost :: Matrix R -> Vector R -> Vector R -> R
+{-cost :: Matrix R -> Vector R -> Vector R -> R
 cost x y t = 1 / (2 * (fromIntegral $ size y)) * sum (toList $ ((x #> t - y) ^ 2))
 
 cost' :: Matrix R -> Vector R -> Vector R -> Vector R
-cost' x y θ = 1 / (fromIntegral $ size y) * ((x #> θ - y) <# x) 
+cost' x y θ = 1 / (fromIntegral $ size y) * ((x #> θ - y) <# x) -}
 
 ex2' :: FilePath -> IO ()
 ex2' path = do

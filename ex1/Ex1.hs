@@ -12,6 +12,7 @@ import Graphics.Rendering.Chart.Backend.Cairo
 
 import GradientDescent
 import Util
+import LinearRegression
 
 -- Visualization.
 getDatapoints :: Matrix R -> [(R, R)]
@@ -22,26 +23,6 @@ draw name datapoints graph = toFile def (name ++ ".png") $ do
 		setColors [opaque red, opaque blue]
 		plot (points "data, obviously" datapoints)
 		plot (line "fit" [graph])
-
--- Cost function for linear regression.
-cost :: Matrix R -> Vector R -> Vector R -> R
-cost x y θ = 1 / (2 * (fromIntegral $ size y)) * sum (toList $ ((x #> θ - y) ^ 2))
-
-cost' :: Matrix R -> Vector R -> Vector R -> Vector R
-cost' x y θ = 1 / (fromIntegral $ size y) * ((x #> θ - y) <# x) 
-
--- Prediction for linear regression. 'N' means normalized, 'V' means vector version.
-predict :: Vector R -> (R -> R)
-predict θ = \arg -> adjoinOne (vector [arg]) <.> θ
-
-predictN :: Vector R -> Vector R -> Vector R -> (R -> R)
-predictN μ σ θ = \arg -> adjoinOne ((vector [arg] - μ) / σ) <.> θ
-
-predictV :: Vector R -> (Vector R -> R)
-predictV θ = \arg -> adjoinOne arg <.> θ
-
-predictVN :: Vector R -> Vector R -> Vector R -> (Vector R -> R)
-predictVN μ σ θ = \arg -> adjoinOne ((arg - μ) / σ) <.> θ
 
 -- Plot a single experiment. 'N' means normalized.
 plotEx1 :: FilePath -> String -> (Matrix R -> Vector R -> Vector R) -> IO ()
