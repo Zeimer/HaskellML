@@ -42,44 +42,90 @@ diffv = diffveps 1e-4
 diffveps :: R -> (Vector R -> R) -> (Vector R -> Vector R)
 diffveps ε f v = vector $ map (\i -> partialveps ε f i v) [0..size v - 1]
 
--- Various variants of gradient descent, including ones with history and code for plotting their error.
--- Analytically computed derivative speeds up the algorithm 2x.
-descentGrad :: R -> Int -> R -> (R -> R) -> (R -> R) -> R
-descentGrad alpha numOfIter start f f'
+-- The naming is as follows:
+-- 1. The standard version is unprefixed.
+-- 2. 'A' means that the parameter alpha is chosen automatically. No 'A' means it has to be given.
+-- 3. 'G' means it takes the derivative as an argument. No 'G' means that an approximation is used.
+-- 4. 'H' means the algorithm returns a list of consecutive approximations instead of the final result only.
+-- 5. 'V' means the domain of the function is a vector.
+
+descentG :: R -> Int -> R -> (R -> R) -> (R -> R) -> R
+descentG alpha numOfIter start f f'
 	| numOfIter <= 0 = start
-	| otherwise = descentGrad alpha (numOfIter - 1) (start - alpha * f' start) f f'
+	| otherwise = descentG alpha (numOfIter - 1) (start - alpha * f' start) f f'
 
-descent a n x f = descentGrad a n x f (diff f) 
+descent a n x f = descentG a n x f (diff f) 
 
-autodescentGrad :: R -> (R -> R) -> (R -> R) -> R
-autodescentGrad p f f' = aux 1e-100 0 f f' where
+descentAG :: R -> (R -> R) -> (R -> R) -> R
+descentAG p f f' = aux 1e-3 0 f f' where
 
 	aux alpha start f f'
 		| f (start - alpha * f' start) > f start = aux (alpha / 2) start f f'
 		| abs (f' start) < p = start
 		| otherwise = aux (2 * alpha) (start - alpha * f' start) f f'
 
-autodescent p f = autodescentGrad p f (diff f)
+descentA p f = descentAG p f (diff f)
 
-descentvGrad :: R -> Int -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> Vector R
-descentvGrad alpha numOfIter start f f'
+descentGV :: R -> Int -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> Vector R
+descentGV alpha numOfIter start f f'
 	| numOfIter <= 0 = start
-	| otherwise = descentvGrad alpha (numOfIter - 1) (start - scale alpha (f' start)) f f'
+	| otherwise = descentGV alpha (numOfIter - 1) (start - scale alpha (f' start)) f f'
 
-descentv a n x f = descentvGrad a n x f (diffv f)
+descentV a n x f = descentGV a n x f (diffv f)
 
-autodescentvGrad :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> Vector R
-autodescentvGrad p start f f' = aux 1e-100 start f f' where
+descentAGV :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> Vector R
+descentAGV p start f f' = aux 1e-3 start f f' where
 
 	aux alpha start f f'
 		| f (start - scale alpha (f' start)) > f start = aux (alpha / 2) start f f'
 		| norm (f' start) < p = start
 		| otherwise = aux (2 * alpha) (start - scale alpha (f' start)) f f'
 
-autodescentv p x f = autodescentvGrad p x f (diffv f)
+descentAV p x f = descentAGV p x f (diffv f)
 
-agh :: Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
-agh start f f' = aux [start] 1 f f' where
+descentGH :: R -> Int -> R -> (R -> R) -> (R -> R) -> [R]
+descentGH a n x f f'
+	| n <= 0 = [x]
+	| otherwise = x : descentGH a (n - 1) (x - a * f' x) f f'
+
+descentH a n x f = descentGH a n x f (diff f)
+
+descentAGHV :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
+descentAGHV p start f f' = aux 1e-3 start f f' where
+
+	aux alpha start f f'
+		| f (start - scale alpha (f' start)) > f start = aux (alpha / 2) start f f'
+		| norm (f' start) < p = [start]
+		| otherwise = start : aux (2 * alpha) (start - scale alpha (f' start)) f f'
+
+
+descentAH :: R -> (R -> R) -> [R]
+descentAH p = aux 1 0 where
+
+	aux alpha start f
+		| f (start - alpha * diff f start) > f start = aux (alpha / 2) start f
+		| abs (diff f start) < p = [start]
+		| otherwise = start : aux (2 * alpha) (start - alpha * diff f start) f
+
+descentAHV :: R -> Vector R -> (Vector R -> R) -> [Vector R]
+descentAHV p start = aux 1e-3 start where
+
+	aux alpha start f
+		| f (start - scale alpha (diffv f start)) > f start = aux (alpha / 2) start f
+		| norm (diffv f start) < p = [start]
+		| otherwise = start : aux (2 * alpha) (start - scale alpha (diffv f start)) f
+
+plotHist :: String -> [R] -> IO ()
+plotHist name points = do
+	let g = zip ([0..] :: [Int]) points
+
+	toFile def (name ++ ".png") $ do
+		layout_title .= name
+		setColors [opaque blue]
+		plot (line "Gradient descent's error" [g])
+
+agh :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
+agh a start f f' = aux [start] a f f' where
 
 	aux hist@(h1:h2:_) alpha f f'
 		| h1 == h2 = hist
@@ -96,94 +142,16 @@ agh start f f' = aux [start] 1 f f' where
 				EQ -> h' : hist
 				LT -> aux (h' : hist) (2 * alpha) f f'-}
 
-descentHist :: R -> Int -> R -> (R -> R) -> [R]
-descentHist alpha numOfIter start f
-	| numOfIter <= 0 = [start]
-	| otherwise = start : descentHist alpha (numOfIter - 1) (start - alpha * diff f start) f
+agh' :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
+agh' a start f f' = aux a start f f' where
 
+	aux :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
+	aux alpha x f f' =
+		let
+			x' = x - scale alpha (f' x)
+		in
+			case compare (f x') (f x) of
+				GT -> x : aux (alpha / 2) x' f f'
+				EQ -> [x]
+				LT -> x : aux (2 * alpha) x' f f'
 
-autodescentvGradHist :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
-autodescentvGradHist p start f f' = aux 1e-100 start f f' where
-
-	aux alpha start f f'
-		| f (start - scale alpha (f' start)) > f start = aux (alpha / 2) start f f'
-		| norm (f' start) < p = [start]
-		| otherwise = start : aux (2 * alpha) (start - scale alpha (f' start)) f f'
-
-
-autodescentHist :: R -> (R -> R) -> [R]
-autodescentHist p = aux 1 0 where
-
-	aux alpha start f
-		| f (start - alpha * diff f start) > f start = aux (alpha / 2) start f
-		| abs (diff f start) < p = [start]
-		| otherwise = start : aux (2 * alpha) (start - alpha * diff f start) f
-
-descentvHist :: R -> Int -> Vector R -> (Vector R -> R) -> [Vector R]
-descentvHist alpha numOfIter start f
-	| numOfIter <= 0 = [start]
-	| otherwise = start : descentvHist alpha (numOfIter - 1) (start - scale alpha (diffv f start)) f
-
-autodescentvHist :: R -> Vector R -> (Vector R -> R) -> [Vector R]
-autodescentvHist p start = aux 1e-3 start where
-
-	aux alpha start f
-		| f (start - scale alpha (diffv f start)) > f start = aux (alpha / 2) start f
-		| norm (diffv f start) < p = [start]
-		| otherwise = start : aux (2 * alpha) (start - scale alpha (diffv f start)) f
-
-plotHist :: String -> [R] -> IO ()
-plotHist name points = do
-	let g = zip ([0..] :: [Int]) points
-
-	toFile def (name ++ ".png") $ do
-		layout_title .= name
-		setColors [opaque blue]
-		plot (line "Gradient descent's error" [g])
-
-
-plotDescentHist :: String -> R -> Int -> R -> (R -> R) -> IO ()
-plotDescentHist name α numOfIter start f = do
-	let g = zip ([0..] :: [Int]) $ map f (descentHist α numOfIter start f)
-
-	toFile def (name ++ ".png") $ do
-		layout_title .= name
-		setColors [opaque blue]
-		plot (line "Gradient descent's error" [g])
-
-plotAutodescentHist :: String -> R -> (R -> R) -> IO ()
-plotAutodescentHist name p f = do
-	let g = zip ([0..] :: [Int]) $ map f (autodescentHist p f)
-
-	toFile def (name ++ ".png") $ do
-		layout_title .= name
-		setColors [opaque blue]
-		plot (line ("Error for autodescent " ++ show p) [g])
-
-plotDescentvHist :: String -> R -> Int -> Vector R -> (Vector R -> R) -> IO ()
-plotDescentvHist name α numOfIter start f = do
-	let g = zip ([0..] :: [Int]) $ map f (descentvHist α numOfIter start f)
-
-	toFile def (name ++ ".png") $ do
-		layout_title .= name
-		setColors [opaque blue]
-		plot (line "Gradient descent's error" [g])
-
-plotAutodescentvHist :: String -> R -> Vector R -> (Vector R -> R) -> IO ()
-plotAutodescentvHist name p start f = do
-	let g = zip ([0..] :: [Int]) $ map f (autodescentvHist p start f)
-
-	toFile def (name ++ ".png") $ do
-		layout_title .= name
-		setColors [opaque blue]
-		plot (line ("Error for autodescentv " ++ show p ++ " " ++ show start) [g])
-
-data Config = Config {α :: R, iters :: Int, start :: Vector R}
-
-cfg :: Config
-cfg = Config {α = 0.1, iters = 50}
-
-superDescent :: Config -> (Vector R -> R) -> Vector R
-superDescent cfg f
-	| iters cfg <= 0 = start cfg
-	| otherwise = superDescent (cfg {iters = iters cfg - 1, start = start cfg - scale (α cfg) (diffv f (start cfg))}) f
