@@ -50,6 +50,17 @@ plotCurves name x_train y_train x_val y_val cost f = do
 		plot (line "training curve" [training_curve])
 		plot (line "validation curve" [validation_curve])
 
+poly :: Int -> Matrix R -> Matrix R
+poly p m
+	| p < 1 = error "WUT?"
+	| otherwise =
+		let
+			cols = replicate p . head . transpose . toLists $ m
+			cols' = zip [1..] cols
+		in
+			fromLists . transpose . map (\(i, col) -> map (^i) col) $ cols'
+		
+
 -- Step through the whole exercise.
 ex5 :: IO ()
 ex5 = do
@@ -77,3 +88,49 @@ ex5 = do
 
 	plotCurves "ex5/curves" x_train y_train x_val y_val cost $
 		\(x, y) -> descentAGV 4e-1 (vector [0, 0]) (cost x y) (cost' x y)
+
+
+prepare :: Matrix R -> (Matrix R, Vector R, Vector R)
+prepare x''' =
+	let
+		x'' = poly 8 x'''
+		(x', μ, σ) = normalizeFeatures' x''
+		x = adjoinOnes x'
+	in (x, μ, σ)
+
+
+-- Step through the whole exercise.
+ex5' :: IO ()
+ex5' = do
+	m_train <- readMatrG " " "ex5/train.txt"
+	m_val <- readMatrG " " "ex5/val.txt"
+	m_test <- readMatrG " " "ex5/test.txt"
+	
+	let
+		(x_train''', y_train) = getXY' m_train
+		(x_val', y_val) = getXY' m_val
+		(x_test', y_test, _, _) = getNormalizedXY m_test
+
+		{-x_train'' = poly 8 x_train'''
+		(x_train', μ, σ) = normalizeFeatures' x_train''
+		x_train = adjoinOnes x_train'-}
+
+		(x_train, μ, σ) = prepare x_train'''
+		(x_val, _, _) = prepare x_val'
+
+		datapoints = map (\[a, b] -> (a, b)) (toLists m_train)
+
+		h = predictVN μ σ $ descentAGV 1e-3 (vector $ replicate 9 0) (regCost 0 x_train y_train) (regCost' 0 x_train y_train)
+		h' = \x -> h . fromList . take 8 . map (\(i, x) -> x^i) $ zip [1..] [x,x..]
+		g = graph h' [-50, 0.05..50]
+
+		name = "ex5/ex5_norm_ling_reg"
+
+	toFile def (name ++ ".png") $ do
+		layout_title .= name
+		setColors [opaque red, opaque blue]
+		plot (points "data, obviously" datapoints)
+		plot (line "fit" [g])
+
+	plotCurves "ex5/curves2" x_train y_train x_val y_val cost $
+		\(x, y) -> descentAGV 1e-3 (vector $ replicate 9 0) (cost x y) (cost' x y)

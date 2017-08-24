@@ -131,16 +131,7 @@ agh a start f f' = aux [start] a f f' where
 		| h1 == h2 = hist
 	aux hist@(h:_) alpha f f'
 		| f (h - scale alpha (f' h)) > f h = aux hist (alpha / 2) f f'
-	--	| f (h - scale alpha (f' h)) == f h = hist
 		| otherwise = aux (h - scale alpha (f' h) : hist) (2 * alpha) f f'
-	{-aux hist@(h:_) alpha f f' =
-		let
-			h' = h - scale alpha (f' h)
-		in
-			case compare (f h') (f h) of
-				GT -> aux (h': hist) (alpha / 2) f f'
-				EQ -> h' : hist
-				LT -> aux (h' : hist) (2 * alpha) f f'-}
 
 agh' :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
 agh' a start f f' = aux a start f f' where
@@ -155,3 +146,14 @@ agh' a start f f' = aux a start f f' where
 				EQ -> [x]
 				LT -> x : aux (2 * alpha) x' f f'
 
+
+
+agh2 :: R -> Vector R -> (Vector R -> R) -> (Vector R -> Vector R) -> [Vector R]
+agh2 p start f f' = aux 1e-3 start f f' where
+
+	aux alpha start f f'
+		| isNaN (f $ start - scale alpha (f' start)) = error $ "NAN KURWA. val: " ++ show (scale alpha (f' start)) ++ " " ++ show (start - scale alpha (f' start))
+		| f (start - scale alpha (f' start)) > f start = aux (alpha / 2) start f f'
+		| f (start - scale alpha (f' start)) == f start = [start]
+		| norm (f' start) < p = [start]
+		| otherwise = start : aux (2 * alpha) (start - scale alpha (f' start)) f f'

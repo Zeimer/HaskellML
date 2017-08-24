@@ -14,8 +14,8 @@ graph :: (a -> b) -> [a] -> [(a, b)]
 graph f dom = zip dom $ map f dom
 
 -- Feature normalization. Beware: possible division by zero.
-normalizeFeatures' :: Matrix R -> (Matrix R, [R], [R])
-normalizeFeatures' m =
+normalizeFeatures :: Matrix R -> (Matrix R, [R], [R])
+normalizeFeatures m =
 	let	f l = let v = vector l in (l, mean v, stddev v)
 		ls = toLists . tr $ m
 		ls' = map f ls
@@ -24,6 +24,11 @@ normalizeFeatures' m =
 		means = map (\(_, μ, _) -> μ) ls'
 		stddevs = map (\(_, _, σ) -> σ) ls'
 	in (m', means, stddevs)
+
+means :: Matrix R -> [R]
+means = map mean . toRows . transpose
+
+normalizeFeatures' m = (x, vector μ, vector σ) where (x, μ, σ) = normalizeFeatures m
 
 -- Extraction of datapoints and features from a single matrix.
 getXY :: Matrix R -> (Matrix R, Vector R)
@@ -40,7 +45,7 @@ getNormalizedXY m =
 	let	ls = map toList . toColumns $ m
 		x'' = init ls
 		y' = last ls
-		(x', means, stddevs) = normalizeFeatures' (tr . fromLists $ x'')
+		(x', means, stddevs) = normalizeFeatures (tr . fromLists $ x'')
 		x = adjoinOnes x'
 		y = fromList y'
 	in (x, y, vector means, vector stddevs)
@@ -59,7 +64,7 @@ getNormalizedXY' m =
 	let	ls = map toList . toColumns $ m
 		x'' = init ls
 		y' = last ls
-		(x, means, stddevs) = normalizeFeatures' (tr . fromLists $ x'')
+		(x, means, stddevs) = normalizeFeatures (tr . fromLists $ x'')
 		y = fromList y'
 	in (x, y, vector means, vector stddevs)
 
